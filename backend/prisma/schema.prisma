@@ -1,0 +1,195 @@
+// Prisma Schema for SmartProfileLink
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 사용자 (인플루언서)
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  password        String
+  name            String
+  username        String   @unique  // 스마트 링크용 URL
+  bio             String?
+  profileImage    String?
+  phoneNumber     String?
+  
+  // 구독 정보
+  planType        PlanType @default(FREE)
+  planExpireAt    DateTime?
+  
+  // 타임스탬프
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  snsAccounts     SNSAccount[]
+  proposals       Proposal[]
+  brandRequests   BrandRequest[]
+  refreshTokens   RefreshToken[]
+  
+  @@map("users")
+}
+
+// Refresh Token 관리
+model RefreshToken {
+  id          String   @id @default(uuid())
+  token       String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  
+  @@map("refresh_tokens")
+}
+
+// SNS 계정 연동
+model SNSAccount {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  platform      SNSPlatform
+  accountName   String
+  accountId     String
+  accessToken   String?
+  refreshToken  String?
+  tokenExpireAt DateTime?
+  
+  connectedAt   DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  stats         SNSStats[]
+  portfolio     PortfolioContent[]
+  
+  @@unique([userId, platform])
+  @@map("sns_accounts")
+}
+
+// SNS 통계 (주기적으로 업데이트)
+model SNSStats {
+  id            String   @id @default(uuid())
+  snsAccountId  String
+  snsAccount    SNSAccount @relation(fields: [snsAccountId], references: [id], onDelete: Cascade)
+  
+  followerCount Int      @default(0)
+  avgLikes      Float    @default(0)
+  avgComments   Float    @default(0)
+  avgViews      Float    @default(0)
+  engagementRate Float   @default(0)  // ER (%)
+  postFrequency Int      @default(0)  // 월 평균 게시물 수
+  
+  updatedAt     DateTime @updatedAt
+  
+  @@map("sns_stats")
+}
+
+// 포트폴리오 콘텐츠
+model PortfolioContent {
+  id            String   @id @default(uuid())
+  snsAccountId  String
+  snsAccount    SNSAccount @relation(fields: [snsAccountId], references: [id], onDelete: Cascade)
+  
+  platform      SNSPlatform
+  contentUrl    String
+  thumbnailUrl  String?
+  contentType   ContentType
+  caption       String?
+  
+  likes         Int      @default(0)
+  comments      Int      @default(0)
+  views         Int      @default(0)
+  
+  isSponsored   Boolean  @default(false)  // AI 분석 결과
+  
+  postedAt      DateTime
+  createdAt     DateTime @default(now())
+  
+  @@map("portfolio_contents")
+}
+
+// 제안서 (PDF)
+model Proposal {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title         String
+  pdfUrl        String
+  
+  // 제안서 내용 (JSON으로 저장)
+  content       Json
+  
+  createdAt     DateTime @default(now())
+  
+  @@map("proposals")
+}
+
+// 브랜드 문의
+model BrandRequest {
+  id            String   @id @default(uuid())
+  userId        String   // 인플루언서
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  brandName     String
+  managerName   String
+  managerEmail  String
+  managerPhone  String?
+  
+  productUrl    String?
+  contentType   String   // 사진, 릴스, 쇼츠, 틱톡 등
+  budget        String?
+  schedule      DateTime?
+  message       String?
+  
+  status        RequestStatus @default(PENDING)
+  
+  // 승인 시 추가 정보
+  shippingAddress String?
+  shootingDate    DateTime?
+  uploadDeadline  DateTime?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@map("brand_requests")
+}
+
+// Enums
+enum PlanType {
+  FREE
+  BASIC
+  PRO
+  PREMIUM
+}
+
+enum SNSPlatform {
+  INSTAGRAM
+  YOUTUBE
+  TIKTOK
+}
+
+enum ContentType {
+  IMAGE
+  VIDEO
+  REEL
+  SHORT
+  STORY
+}
+
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+}
+
+
+
