@@ -14,6 +14,61 @@ export class SnsService {
     private tiktokService: TiktokService,
   ) {}
 
+  // OAuth를 통한 Instagram 계정 저장
+  async saveInstagramAccount(userId: string, data: {
+    instagramUserId: string;
+    accessToken: string;
+    accountName: string;
+    followerCount: number;
+    avgLikes: number;
+    avgComments: number;
+    avgViews: number;
+    engagementRate: number;
+    postFrequency: number;
+  }) {
+    // SNS 계정 저장
+    const snsAccount = await this.prisma.sNSAccount.upsert({
+      where: {
+        userId_platform: {
+          userId,
+          platform: 'INSTAGRAM',
+        },
+      },
+      update: {
+        accountName: data.accountName,
+        accountId: data.instagramUserId,
+        accessToken: data.accessToken,
+        tokenExpireAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60일 후
+      },
+      create: {
+        userId,
+        platform: 'INSTAGRAM',
+        accountName: data.accountName,
+        accountId: data.instagramUserId,
+        accessToken: data.accessToken,
+        tokenExpireAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60일 후
+      },
+    });
+
+    // 통계 정보 저장
+    await this.prisma.sNSStats.create({
+      data: {
+        snsAccountId: snsAccount.id,
+        followerCount: data.followerCount,
+        avgLikes: data.avgLikes,
+        avgComments: data.avgComments,
+        avgViews: data.avgViews,
+        engagementRate: data.engagementRate,
+        postFrequency: data.postFrequency,
+      },
+    });
+
+    // 포트폴리오 콘텐츠 저장
+    await this.updatePortfolio(snsAccount.id, 'INSTAGRAM', data.accessToken);
+
+    return snsAccount;
+  }
+
   async connectSns(userId: string, dto: ConnectSnsDto) {
     const { platform, accessToken } = dto;
 
